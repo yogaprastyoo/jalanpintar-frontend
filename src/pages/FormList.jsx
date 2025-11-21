@@ -112,7 +112,7 @@ const FormList = () => {
   const loadForms = async () => {
     setIsLoading(true);
     try {
-      const response = await api.get('/api/forms');
+      const response = await api.get('/forms');
       console.log('📋 Forms from API:', response.data);
       
       // Map API response to match current structure
@@ -146,7 +146,7 @@ const FormList = () => {
 
   const loadFolders = async () => {
     try {
-      const response = await api.get('/api/categories');
+      const response = await api.get('/categories');
       console.log('📂 Categories loaded from API:', response.data);
       
       // Log each category's icon and color
@@ -217,7 +217,7 @@ const FormList = () => {
       console.log('📤 Creating category with payload:', payload);
       
       // Create via API with Laravel structure
-      const response = await api.post('/api/categories', payload);
+      const response = await api.post('/categories', payload);
       
       console.log('✅ Category created:', response.data);
       console.log('📝 Icon saved:', response.data.icon);
@@ -272,7 +272,7 @@ const FormList = () => {
       console.log('📤 Updating category with payload:', payload);
       
       // Update via API
-      const response = await api.put(`/api/categories/${editingFolder.id}`, payload);
+      const response = await api.put(`/categories/${editingFolder.id}`, payload);
       
       console.log('✅ Category updated:', response.data);
       console.log('📝 Icon updated:', response.data.icon);
@@ -317,7 +317,7 @@ const FormList = () => {
     
     try {
       // Delete via API
-      await api.delete(`/api/categories/${categoryId}`);
+      await api.delete(`/categories/${categoryId}`);
       
       console.log('✅ Category deleted');
       
@@ -342,7 +342,7 @@ const FormList = () => {
   const deleteForm = async (formId) => {
     try {
       // Delete via API
-      await api.delete(`/api/forms/${formId}`);
+      await api.delete(`forms/${formId}`);
       
       // Update local state
       const updatedForms = forms.filter(f => f.id !== formId);

@@ -42,22 +42,20 @@ const LoginPage = () => {
       console.log('🔄 Refresh token:', localStorage.getItem('smartpath_refresh_token'));
       console.log('👤 User role:', response.user?.role);
       
-      // Check if user has admin role
-      if (response.user?.role !== 'admin') {
-        clearTokens(); // Clear tokens for non-admin users
-        toast({
-          title: "Akses Ditolak! ❌",
-          description: "Hanya admin yang dapat mengakses halaman ini.",
-          variant: "destructive"
-        });
-        return;
-      }
-      
       toast({
         title: "Login Berhasil! 🎉",
-        description: `Selamat datang, ${response.user?.name || 'Admin'}!`
+        description: `Selamat datang, ${response.user?.name || 'User'}!`
       });
-      navigate('/admin');
+
+      // Redirect based on role
+      if (response.user?.role === 'admin') {
+        navigate('/admin');
+      } else if (response.user?.role === 'user') {
+        navigate('/user/dashboard');
+      } else {
+        // Fallback for other roles or if role is not defined
+        navigate('/');
+      }
     } catch (error) {
       console.error('❌ Login error:', error);
       toast({
@@ -94,13 +92,15 @@ const LoginPage = () => {
       // Redirect berdasarkan role
       if (response.user?.role === 'admin') {
         navigate('/admin');
+      } else if (response.user?.role === 'user') {
+        navigate('/user/dashboard');
       } else {
-        // User biasa bisa diarahkan ke halaman lain (misalnya dashboard user)
+        // Fallback for other roles
         toast({
           title: "Info",
-          description: "Akun user berhasil dibuat. Silakan login.",
+          description: "Akun berhasil dibuat. Silakan login.",
         });
-        clearTokens(); // Clear token untuk user non-admin
+        clearTokens(); // Clear token untuk roles yang tidak dikenal
       }
     } catch (error) {
       toast({

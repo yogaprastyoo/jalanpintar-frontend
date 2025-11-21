@@ -1,6 +1,6 @@
 import { POPUP_STYLES } from "./plugins/visual-editor/visual-editor-config.js";
 
-const PLUGIN_APPLY_EDIT_API_URL = "/api/apply-edit";
+const PLUGIN_APPLY_EDIT_API_URL = "apply-edit";
 
 const ALLOWED_PARENT_ORIGINS = [
 	"https://horizons.hostinger.com",

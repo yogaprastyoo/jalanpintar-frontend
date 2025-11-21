@@ -9,10 +9,10 @@
  */
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
-const LOGIN_ENDPOINT = import.meta.env.VITE_API_LOGIN || '/api/auth/login';
-const REGISTER_ENDPOINT = import.meta.env.VITE_API_REGISTER || '/api/auth/register';
-const REFRESH_ENDPOINT = import.meta.env.VITE_API_REFRESH || '/api/auth/refresh';
-const LOGOUT_ENDPOINT = import.meta.env.VITE_API_LOGOUT || '/api/auth/logout';
+const LOGIN_ENDPOINT = import.meta.env.VITE_API_LOGIN || '/login';
+const REGISTER_ENDPOINT = import.meta.env.VITE_API_REGISTER || '/register';
+const REFRESH_ENDPOINT = import.meta.env.VITE_API_REFRESH || '/refresh';
+const LOGOUT_ENDPOINT = import.meta.env.VITE_API_LOGOUT || '/logout';
 
 // Token storage keys
 const ACCESS_TOKEN_KEY = 'smartpath_access_token';
@@ -302,61 +302,96 @@ export const logout = async () => {
   clearTokens();
 };
 
+// Flag to prevent multiple concurrent refresh requests
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
 /**
  * Main API fetch wrapper with automatic token refresh
- * @param {string} endpoint - API endpoint (e.g., '/api/forms')
+ * @param {string} endpoint - API endpoint (e.g., 'forms')
  * @param {Object} options - Fetch options (method, body, headers, etc.)
  * @param {boolean} requireAuth - Whether this request requires authentication
  * @returns {Promise<Response>}
  */
 export const apiFetch = async (endpoint, options = {}, requireAuth = true) => {
-  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
-  
-  // Check if body is FormData - don't set Content-Type for FormData
-  const isFormData = options.body instanceof FormData;
-  
-  // Merge headers
-  const headers = {
-    'Accept': 'application/json',
-    ...options.headers,
-  };
-  
-  // Only set Content-Type if not FormData (browser will auto-set for FormData with boundary)
-  if (!isFormData) {
-    headers['Content-Type'] = 'application/json';
-  }
+  const makeRequest = async (token) => {
+    const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
+    const isFormData = options.body instanceof FormData;
 
-  // Add authorization header if required
-  if (requireAuth) {
-    const accessToken = getAccessToken();
-    if (accessToken) {
-      headers['Authorization'] = `Bearer ${accessToken}`;
+    const headers = {
+      'Accept': 'application/json',
+      ...options.headers,
+    };
+
+    if (!isFormData) {
+      headers['Content-Type'] = 'application/json';
     }
+
+    if (requireAuth && token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    return fetch(url, { ...options, headers });
+  };
+
+  let accessToken = getAccessToken();
+  
+  // Check if user is authenticated when auth is required
+  if (requireAuth && !accessToken) {
+    console.warn('⚠️ No access token found for authenticated request');
+    throw new Error('Authentication required. Please login again.');
   }
 
-  // First attempt
-  let response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  console.log(`🔄 Making ${options.method || 'GET'} request to ${endpoint}`);
+  if (requireAuth) {
+    console.log('🔑 Using access token:', accessToken ? 'Present' : 'Missing');
+  }
+  
+  let response = await makeRequest(accessToken);
+  console.log(`📡 Response status: ${response.status}`);
 
-  // If 401 and we have a refresh token, try to refresh and retry
   if (response.status === 401 && requireAuth && getRefreshToken()) {
+    console.log('🔄 Token expired, attempting refresh...');
+    
+    if (isRefreshing) {
+      console.log('⏳ Already refreshing, queuing request...');
+      return new Promise((resolve, reject) => {
+        failedQueue.push({
+          resolve: (newAccessToken) => {
+            console.log('🔄 Retrying queued request with new token...');
+            makeRequest(newAccessToken).then(res => resolve(res)).catch(reject);
+          },
+          reject,
+        });
+      });
+    }
+
+    isRefreshing = true;
     try {
       const newAccessToken = await refreshAccessToken();
-      
-      // Retry request with new token
-      headers['Authorization'] = `Bearer ${newAccessToken}`;
-      response = await fetch(url, {
-        ...options,
-        headers,
-      });
-    } catch (refreshError) {
-      console.error('Token refresh failed:', refreshError);
+      console.log('✅ Token refreshed successfully');
+      processQueue(null, newAccessToken);
+      response = await makeRequest(newAccessToken); // Retry the original request
+      console.log(`📡 Retry response status: ${response.status}`);
+    } catch (error) {
+      console.error('❌ Token refresh failed:', error);
+      processQueue(error, null);
       clearTokens();
-      // Optionally redirect to login page
-      // window.location.href = '/login';
+      window.location.href = '/login';
       throw new Error('Session expired. Please login again.');
+    } finally {
+      isRefreshing = false;
     }
   }
 
@@ -493,6 +528,150 @@ export const api = {
     
     return response.json();
   },
+
+  /**
+   * Verify affiliate code for a specific form (public endpoint)
+   */
+  verifyAffiliateCode: async (affiliateCode, formId) => {
+    try {
+      return await api.publicPost('/public/affiliates/verify', {
+        affiliate_code: affiliateCode,
+        form_id: formId
+      });
+    } catch (error) {
+      console.error('Failed to verify affiliate code:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Admin Affiliate Management Endpoints
+   */
+
+  // Get all affiliates for admin
+  getAffiliates: async () => {
+    try {
+      return await api.get('/admin/affiliates');
+    } catch (error) {
+      console.error('Failed to get affiliates:', error);
+      throw error;
+    }
+  },
+
+  // Get pending affiliates for admin
+  getPendingAffiliates: async () => {
+    try {
+      return await api.get('/admin/affiliates/pending');
+    } catch (error) {
+      console.error('Failed to get pending affiliates:', error);
+      throw error;
+    }
+  },
+
+  // Approve affiliate
+  approveAffiliate: async (affiliateId) => {
+    try {
+      return await api.post(`/admin/affiliates/${affiliateId}/approve`);
+    } catch (error) {
+      console.error('Failed to approve affiliate:', error);
+      throw error;
+    }
+  },
+
+  // Reject affiliate
+  rejectAffiliate: async (affiliateId) => {
+    try {
+      return await api.post(`/admin/affiliates/${affiliateId}/reject`);
+    } catch (error) {
+      console.error('Failed to reject affiliate:', error);
+      throw error;
+    }
+  },
+
+  // Create new affiliate (admin only)
+  createAffiliate: async (affiliateData) => {
+    try {
+      return await api.post('/admin/affiliates', affiliateData);
+    } catch (error) {
+      console.error('Failed to create affiliate:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * New Authenticated Form Submission & User Endpoints
+   */
+
+  // Submit form (authenticated) - email auto-filled from logged user
+  submitForm: async (formSlug, payload) => {
+    try {
+      // Send the payload directly - it already contains the correct structure:
+      // { data: {...}, pricing_tier_id: X, affiliate_code: 'ABC' }
+      return await api.post('/submissions', {
+        form_slug: formSlug,
+        ...payload // Spread the payload to maintain the correct structure
+      });
+    } catch (error) {
+      console.error('Failed to submit form:', error);
+      throw error;
+    }
+  },
+
+  // Get user's form submission status
+  getUserForms: async () => {
+    try {
+      return await api.get('/user/forms');
+    } catch (error) {
+      console.error('Failed to get user forms:', error);
+      throw error;
+    }
+  },
+
+  // Check if user has submitted a specific form
+  checkFormSubmissionStatus: async (formSlug) => {
+    try {
+      return await api.get(`/user/forms/${formSlug}/status`);
+    } catch (error) {
+      console.error('Failed to check form submission status:', error);
+      throw error;
+    }
+  },
+
+  // Get user's affiliate statistics and codes
+  getMyAffiliateStats: async () => {
+    try {
+      return await api.get('/affiliates/my/statistics');
+    } catch (error) {
+      console.error('Failed to get affiliate stats:', error);
+      throw error;
+    }
+  },
+
+  // Get affiliate leaderboard
+  getAffiliateLeaderboard: async (formId = null, metric = 'total_earned') => {
+    try {
+      const params = new URLSearchParams();
+      if (formId) params.set('form_id', formId);
+      params.set('metric', metric);
+      
+      return await api.get(`/affiliates/leaderboard?${params}`);
+    } catch (error) {
+      console.error('Failed to get affiliate leaderboard:', error);
+      throw error;
+    }
+  },
+
+  // Get user's current affiliate codes for all forms
+  getMyAffiliateCodes: async () => {
+    try {
+      return await api.get('/affiliates/my/codes');
+    } catch (error) {
+      console.error('Failed to get affiliate codes:', error);
+      throw error;
+    }
+  },
+
+
 };
 
 export default api;

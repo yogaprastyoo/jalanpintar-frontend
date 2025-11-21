@@ -257,7 +257,7 @@ export default function inlineEditPlugin() {
 
 		// Updates source code based on the changes received from the client
 		configureServer(server) {
-			server.middlewares.use('/api/apply-edit', async (req, res, next) => {
+			server.middlewares.use('apply-edit', async (req, res, next) => {
 				if (req.method !== 'POST') return next();
 
 				let body = '';

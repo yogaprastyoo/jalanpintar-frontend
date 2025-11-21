@@ -16,7 +16,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import api from '@/lib/api';
+import { Checkbox } from '@/components/ui/checkbox';
+import api, { getUserData, isAuthenticated } from '@/lib/api';
 
 // Icon mapping untuk section (sama dengan FormBuilderEditor)
 const SECTION_ICONS = {
@@ -31,13 +32,28 @@ const formatRupiah = (number) => {
 
 // Memoized field component to prevent unnecessary re-renders
 const FormField = memo(({ field, value, onChange }) => {
+  // Check if this field was auto-filled
+  const isAutoFilled = value && isAuthenticated() && (() => {
+    const userData = getUserData();
+    if (!userData) return false;
+    
+    // Check if value matches user data
+    if (field.type === 'email' && value === userData.email) return true;
+    if ((field.label.toLowerCase().includes('nama') || field.label.toLowerCase().includes('name')) && 
+        value === userData.name) return true;
+    if ((field.type === 'tel' || field.label.toLowerCase().includes('phone')) && 
+        value === userData.phone) return true;
+    
+    return false;
+  })();
+
   const commonProps = {
     id: `field-${field.id}`,
     required: field.required,
     placeholder: field.placeholder,
     value: value || '',
     onChange: onChange,
-    className: "mt-1"
+    className: `mt-1 ${isAutoFilled ? 'border-green-300 bg-green-50' : ''}`
   };
 
   const renderFieldInput = () => {
@@ -57,6 +73,35 @@ const FormField = memo(({ field, value, onChange }) => {
             </SelectContent>
           </Select>
         );
+      case 'checkbox':
+        return (
+          <div className="space-y-2 mt-2">
+            {(field.options || '').split(',').map(opt => opt.trim()).filter(Boolean).map(option => {
+              const selectedValues = value ? (Array.isArray(value) ? value : value.split(',')) : [];
+              const isChecked = selectedValues.includes(option);
+              return (
+                <div key={option} className="flex items-center gap-3 p-3 bg-gray-50 border rounded-lg hover:bg-gray-100 transition-colors">
+                  <Checkbox 
+                    id={`checkbox-${field.id}-${option}`}
+                    checked={isChecked}
+                    onCheckedChange={(checked) => {
+                      let newValues = Array.isArray(value) ? [...value] : (value ? value.split(',') : []);
+                      if (checked) {
+                        newValues.push(option);
+                      } else {
+                        newValues = newValues.filter(v => v !== option);
+                      }
+                      onChange({ target: { value: newValues.join(',') } });
+                    }}
+                  />
+                  <Label htmlFor={`checkbox-${field.id}-${option}`} className="font-normal cursor-pointer text-sm flex-1">
+                    {option}
+                  </Label>
+                </div>
+              );
+            })}
+          </div>
+        );
       default:
         return <Input type={field.type} {...commonProps} />;
     }
@@ -64,9 +109,15 @@ const FormField = memo(({ field, value, onChange }) => {
 
   return (
     <div>
-      <Label htmlFor={`field-${field.id}`}>
+      <Label htmlFor={`field-${field.id}`} className="flex items-center gap-2">
         {field.label}
         {field.required && <span className="text-red-500 ml-1">*</span>}
+        {isAutoFilled && (
+          <span className="inline-flex items-center gap-1 text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">
+            <CheckCircle2 className="w-3 h-3" />
+            Auto-filled
+          </span>
+        )}
       </Label>
       {renderFieldInput()}
     </div>
@@ -88,8 +139,34 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
   const [isExpiredPreview, setIsExpiredPreview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true); // Set true by default
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [submissionData, setSubmissionData] = useState(null);
+  const [affiliateInfo, setAffiliateInfo] = useState(null);
+  const [isVerifyingAffiliate, setIsVerifyingAffiliate] = useState(false);
 
-  // Check for affiliate code in URL parameter
+  // 🚨 CRITICAL: Check authentication for form submissions
+  useEffect(() => {
+    // Skip authentication check for preview mode
+    if (isPreview) return;
+    
+    // Check if user is authenticated
+    if (!isAuthenticated()) {
+      console.log('🔐 Authentication required for form submission');
+      toast({
+        title: "Login Diperlukan 🔐",
+        description: "Anda harus login terlebih dahulu untuk mengisi form ini.",
+      });
+      
+      // Redirect to login with current path as redirect parameter
+      const currentPath = window.location.pathname + window.location.search;
+      navigate(`/login?redirect=${encodeURIComponent(currentPath)}`);
+      return;
+    }
+    
+    console.log('✅ User authenticated, continuing with form');
+  }, [isPreview, navigate, toast]);
+
+  // Check for affiliate code in URL parameter and verify it
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const refCode = urlParams.get('ref') || urlParams.get('affiliate') || urlParams.get('aff');
@@ -98,6 +175,78 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
       console.log('🎁 Affiliate code detected from URL:', refCode);
     }
   }, []);
+
+  // Verify affiliate code when form data and affiliate code are available
+  useEffect(() => {
+    const verifyAffiliate = async () => {
+      if (affiliateCode && formData && formData.id && !isPreview) {
+        console.log('🔍 Verifying affiliate code:', {
+          code: affiliateCode,
+          formId: formData.id,
+          formTitle: formData.title
+        });
+        
+        setIsVerifyingAffiliate(true);
+        try {
+          const response = await api.verifyAffiliateCode(affiliateCode, formData.id);
+          console.log('🔍 Affiliate verify response:', response);
+          
+          if (response.success) {
+            setAffiliateInfo(response.data);
+            console.log('✅ Affiliate code verified:', response.data);
+            toast({
+              title: "Kode Affiliate Valid! 🎉",
+              description: `Referral dari ${response.data.affiliate_name} - Komisi ${response.data.commission_type === 'percentage' ? response.data.commission_value + '%' : 'Rp ' + response.data.commission_value}`,
+            });
+          }
+        } catch (error) {
+          console.warn('❌ Invalid affiliate code:', error);
+          console.warn('❌ Error details:', error.response?.data || error.message);
+          setAffiliateCode(''); // Clear invalid code
+          toast({
+            title: "Kode Affiliate Tidak Valid ❌",
+            description: "Kode affiliate yang dimasukkan tidak valid untuk form ini.",
+            variant: "destructive"
+          });
+        } finally {
+          setIsVerifyingAffiliate(false);
+        }
+      }
+    };
+
+    verifyAffiliate();
+  }, [affiliateCode, formData, isPreview]);
+
+  // Debounced affiliate verification untuk manual input
+  useEffect(() => {
+    if (!affiliateCode || isPreview) return;
+
+    const timeoutId = setTimeout(() => {
+      if (formData && formData.id && affiliateCode.length >= 3) {
+        // Re-verify jika user mengubah affiliate code
+        const verifyManualCode = async () => {
+          setIsVerifyingAffiliate(true);
+          try {
+            const response = await api.verifyAffiliateCode(affiliateCode, formData.id);
+            if (response.success) {
+              setAffiliateInfo(response.data);
+            } else {
+              setAffiliateInfo(null);
+            }
+          } catch (error) {
+            setAffiliateInfo(null);
+          } finally {
+            setIsVerifyingAffiliate(false);
+          }
+        };
+        verifyManualCode();
+      } else {
+        setAffiliateInfo(null);
+      }
+    }, 1000); // 1 second delay
+
+    return () => clearTimeout(timeoutId);
+  }, [affiliateCode]);
 
   // Optimize: Only update formData when necessary
   useEffect(() => {
@@ -108,11 +257,44 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
       } else if (!isPreview && formSlug) {
         setIsLoading(true);
         try {
-          // Try to load from API first (public endpoint using slug, without /view)
-          const response = await api.publicGet(`/api/public/forms/${formSlug}`);
+          let response;
+          let backendData;
+          
+          // Use authenticated endpoint if user is logged in to get submission status
+          if (isAuthenticated()) {
+            try {
+              // First try to get the form with submission status from user endpoint
+              const userFormsResponse = await api.get(`/user/forms?search=${formSlug}`);
+              const matchedForm = userFormsResponse.data.find(form => form.slug === formSlug);
+              
+              if (matchedForm) {
+                backendData = matchedForm;
+                // Set submission status from user endpoint
+                setHasSubmitted(matchedForm.user_has_submitted || false);
+                if (matchedForm.user_has_submitted && matchedForm.user_submitted_at) {
+                  setSubmissionData({
+                    submitted_at: matchedForm.user_submitted_at,
+                    status: matchedForm.user_submission_status,
+                    id: matchedForm.user_submission_id
+                  });
+                }
+              } else {
+                // Fallback to public endpoint if form not found in user forms
+                response = await api.publicGet(`/public/forms/${formSlug}`);
+                backendData = response.data;
+              }
+            } catch (userError) {
+              console.warn('Failed to load from user endpoint, falling back to public:', userError);
+              response = await api.publicGet(`/public/forms/${formSlug}`);
+              backendData = response.data;
+            }
+          } else {
+            // Use public endpoint for non-authenticated users
+            response = await api.publicGet(`/public/forms/${formSlug}`);
+            backendData = response.data;
+          }
           
           // Transform backend data to match frontend structure
-          const backendData = response.data;
           const transformedData = {
             id: backendData.id,
             title: backendData.title,
@@ -163,6 +345,16 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
           console.log('✅ Form loaded by slug:', formSlug, transformedData);
         } catch (error) {
           console.error('Failed to load form from API:', error);
+          
+          // Check if it's a 404 error (form not found)
+          if (error.response && error.response.status === 404) {
+            toast({
+              title: "Form Tidak Ditemukan ❌",
+              description: `Form dengan slug "${formSlug}" tidak ditemukan. Periksa kembali link Anda.`,
+              variant: "destructive"
+            });
+          }
+          
           // Fallback to localStorage (for backward compatibility or temp preview)
           const savedFormData = localStorage.getItem(`smartpath_form_${formSlug}`);
           if (savedFormData) {
@@ -203,6 +395,52 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
     }
   }, [formData, currentSectionId, selectedTier]);
 
+  // Auto-fill form fields with user data if logged in
+  useEffect(() => {
+    if (formData && formData.fields && isAuthenticated()) {
+      const userData = getUserData();
+      if (userData) {
+        const autoFillValues = {};
+        
+        formData.fields.forEach(field => {
+          // Auto-fill email fields (for display only - backend uses authenticated user's email)
+          if (field.type === 'email' || 
+              field.label.toLowerCase().includes('email') ||
+              field.label.toLowerCase().includes('e-mail')) {
+            autoFillValues[field.id] = userData.email;
+            console.log('📧 Email field auto-filled (display only):', field.label);
+          }
+          
+          // Auto-fill name fields
+          if (field.label.toLowerCase().includes('nama') ||
+              field.label.toLowerCase().includes('name') ||
+              field.label.toLowerCase().includes('fullname') ||
+              field.label.toLowerCase().includes('full name')) {
+            autoFillValues[field.id] = userData.name;
+          }
+
+          // Auto-fill phone fields (if available in userData)
+          if ((field.type === 'tel' || 
+               field.label.toLowerCase().includes('phone') ||
+               field.label.toLowerCase().includes('telepon') ||
+               field.label.toLowerCase().includes('hp') ||
+               field.label.toLowerCase().includes('whatsapp')) &&
+              userData.phone) {
+            autoFillValues[field.id] = userData.phone;
+          }
+        });
+        
+        // Only set values if we found fields to auto-fill
+        if (Object.keys(autoFillValues).length > 0) {
+          setFormValues(prev => ({ ...autoFillValues, ...prev }));
+          console.log('✅ Auto-filled user data:', autoFillValues);
+        }
+      }
+    }
+  }, [formData]);
+
+
+
   const handleSectionChange = useCallback((direction) => {
     setCurrentSectionId(prevId => {
       if (!formData || !formData.sections) return prevId;
@@ -238,6 +476,16 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
       toast({ title: "Mode Preview", description: "Ini adalah mode preview. Form tidak akan benar-benar dikirim." });
       return;
     }
+
+    // Prevent duplicate submissions for authenticated users
+    if (hasSubmitted && isAuthenticated()) {
+      toast({ 
+        title: "Sudah Terdaftar! ✅", 
+        description: "Anda sudah mendaftar pada form ini sebelumnya. Tidak dapat mendaftar ulang.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     if (tierToSubmit?.price === 0 && formData.upsellEnabled && !showUpsell) {
       setShowUpsell(true);
@@ -249,43 +497,47 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
     try {
       // Skip API call for temp preview forms
       if (!formSlug.startsWith('temp_preview_')) {
-        // Build FormData payload (untuk support file upload)
-        const formDataPayload = new FormData();
+        // Build form data payload (excluding email - auto-filled from authenticated user)
+        const submissionData = {};
         
-        // Add form_slug
-        formDataPayload.append('form_slug', formSlug);
-        
-        // Add form responses directly to FormData with data[field_name] format
+        // Add form responses (exclude email fields - they're auto-filled by backend)
         Object.entries(formValues).forEach(([fieldId, value]) => {
           const field = formData.fields.find(f => f.id === fieldId);
-          if (field) {
-            // Append with data[field_label] format (untuk file dan non-file)
-            formDataPayload.append(`data[${field.label}]`, value || '');
+          if (field && field.type !== 'email') { // Skip email fields - auto-filled from user
+            submissionData[field.label] = value || '';
           }
         });
         
-        // Add pricing tier ID (jika ada dan bukan 0/free tier)
-        if (tierToSubmit?.id && tierToSubmit.id !== 0) {
-          formDataPayload.append('pricing_tier_id', tierToSubmit.id);
-        }
-        
-        // DON'T send payment_method - backend will handle it
-        // Backend akan set payment_method berdasarkan pricing_tier
-        
-        // Add affiliate code (jika ada)
+        // Add affiliate code to data object (same level as other form fields)
         if (affiliateCode) {
-          formDataPayload.append('affiliate_code', affiliateCode);
+          submissionData.affiliate_code = affiliateCode;
         }
         
-        console.log('Tier to Submit:', tierToSubmit);
-        console.log('Sending FormData with entries:');
-        for (let pair of formDataPayload.entries()) {
-          console.log(`  ${pair[0]}:`, pair[1] instanceof File ? `[File: ${pair[1].name}]` : pair[1]);
-        }
+        // Build complete payload for authenticated submission
+        const payload = {
+          data: submissionData, // Contains form fields + affiliate_code
+          // Add pricing tier ID (if not free tier)
+          ...(tierToSubmit?.id && tierToSubmit.id !== 0 && { pricing_tier_id: tierToSubmit.id })
+        };
         
-        // Submit to API only for real forms (using slug)
-        const response = await api.publicPost(`/api/public/submissions`, formDataPayload);
-        console.log('Submission successful:', response);
+        console.log('🔐 Authenticated Submission Data:');
+        console.log('  Form Slug:', formSlug);
+        console.log('  Tier:', tierToSubmit);
+        console.log('  Payload:', payload);
+        console.log('  🎁 Affiliate Code:', affiliateCode ? `"${affiliateCode}" (SENT in data object)` : 'NONE');
+        console.log('  🚫 Email excluded - will be auto-filled from authenticated user');
+        
+        // Submit using new authenticated endpoint
+        const response = await api.submitForm(formSlug, payload);
+        console.log('✅ Authenticated submission successful:', response);
+        
+        // Debug: Check if affiliate info is in response
+        if (affiliateCode) {
+          console.log('🔍 Affiliate Debug Info:');
+          console.log('  - Code sent:', affiliateCode);
+          console.log('  - Verified info:', affiliateInfo);
+          console.log('  - Response mentions affiliate:', JSON.stringify(response).includes('affiliate'));
+        }
         
         // Check if payment is required (ada invoice_url dari Xendit)
         if (response?.data?.payment?.invoice_url) {
@@ -310,6 +562,30 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
           }, 800);
           
           return; // Stop execution, karena akan redirect keluar
+        }
+        
+        // SUCCESS: Show affiliate code if auto-generated
+        if (response?.data?.affiliate_code) {
+          toast({ 
+            title: "Form Berhasil Dikirim! 🎉", 
+            description: `Kode affiliate Anda: ${response.data.affiliate_code}`,
+            duration: 10000, // Show longer for affiliate code
+          });
+          
+          // Update local state
+          setHasSubmitted(true);
+          setSubmissionData({
+            submitted_at: new Date().toISOString(),
+            status: 'approved',
+            affiliate_code: response.data.affiliate_code
+          });
+        } else {
+          toast({ 
+            title: "Form Berhasil Dikirim! ✅", 
+            description: "Terima kasih telah mengisi form ini.",
+          });
+          
+          setHasSubmitted(true);
         }
       } else {
         console.log('Preview mode - skipping API submission');
@@ -345,10 +621,20 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
         data: error.data
       });
       
-      // Show more specific error message
+      // Show specific error messages for different scenarios
       let errorMessage = "Gagal mengirim form. Coba lagi.";
       
-      if (error.message?.includes('Xendit')) {
+      if (error.message?.includes('Authentication required')) {
+        errorMessage = "Sesi Anda telah berakhir. Silakan login ulang.";
+        // Redirect to login after showing error
+        setTimeout(() => {
+          const currentPath = window.location.pathname + window.location.search;
+          navigate(`/login?redirect=${encodeURIComponent(currentPath)}`);
+        }, 2000);
+      } else if (error.message?.includes('duplicate') || error.message?.includes('already submitted')) {
+        errorMessage = "Anda sudah pernah mengisi form ini sebelumnya.";
+        setHasSubmitted(true); // Update UI state
+      } else if (error.message?.includes('Xendit')) {
         errorMessage = "Terjadi kesalahan pada sistem pembayaran. Silakan hubungi admin.";
       } else if (error.message) {
         errorMessage = error.message;
@@ -362,7 +648,7 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [isPreview, formData, currentSectionId, selectedTier, showUpsell, formValues, formSlug, navigate, toast, handleSectionChange]);
+  }, [isPreview, formData, currentSectionId, selectedTier, showUpsell, formValues, formSlug, navigate, toast, handleSectionChange, hasSubmitted, affiliateCode]);
 
   // Memoize current section data
   const currentSectionData = useMemo(() => {
@@ -515,10 +801,118 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
             <p className="text-gray-500 text-sm">Isi form di bawah untuk mendaftar</p>
           </motion.div>
 
+          {/* Affiliate code notification */}
+          {affiliateInfo && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6"
+            >
+              <div className="bg-gradient-to-r from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0">
+                    <Gift className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-purple-800">Kode Affiliate Aktif!</h3>
+                    <p className="text-purple-700 text-sm">
+                      Referral dari <span className="font-medium">{affiliateInfo.affiliate_name}</span>
+                    </p>
+                    <p className="text-purple-600 text-xs mt-1">
+                      Komisi: {affiliateInfo.commission_type === 'percentage' 
+                        ? `${affiliateInfo.commission_value}%` 
+                        : `Rp ${new Intl.NumberFormat('id-ID').format(affiliateInfo.commission_value)}`
+                      }
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="bg-purple-200 text-purple-800 px-2 py-1 rounded text-xs font-mono">
+                      {affiliateCode}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Submission status notification */}
+          {hasSubmitted && isAuthenticated() && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6"
+            >
+              <div className="bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-xl p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0">
+                    <CheckCircle2 className="w-6 h-6 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-green-800">Anda Sudah Terdaftar!</h3>
+                    <p className="text-green-700 text-sm">
+                      Anda telah mendaftar pada form ini sebelumnya.
+                      {submissionData?.submitted_at && (
+                        <span className="block text-green-600 text-xs mt-1">
+                          Tanggal daftar: {new Date(submissionData.submitted_at).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'long', 
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      )}
+                      {submissionData?.affiliate_code && (
+                        <div className="flex items-center gap-2 mt-2 p-2 bg-white rounded-lg border border-green-200">
+                          <Gift className="w-4 h-4 text-purple-600" />
+                          <span className="text-sm font-medium text-purple-800">
+                            Kode Affiliate: {submissionData.affiliate_code}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              navigator.clipboard.writeText(submissionData.affiliate_code);
+                              toast({
+                                title: "Kode Disalin!",
+                                description: "Kode affiliate telah disalin ke clipboard.",
+                              });
+                            }}
+                            className="h-6 px-2 text-xs"
+                          >
+                            Copy
+                          </Button>
+                        </div>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           <AnimatePresence mode="wait">
             {!showUpsell ? (
               <motion.div key="main-form" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="bg-white rounded-3xl shadow-xl p-6 md:p-8">
                 <form onSubmit={handleSubmit} className="space-y-8">
+                  {/* Authentication Info Banner */}
+                  {isAuthenticated() && (
+                    <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-4 border border-green-200 mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-green-100 rounded-lg">
+                          <CheckCircle2 className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-green-900">Login Terverifikasi</h3>
+                          <p className="text-sm text-green-700">
+                            Email Anda ({getUserData()?.email}) akan otomatis digunakan untuk pendaftaran.
+                            {formData?.hasAffiliate && ' Kode affiliate akan dibuat otomatis setelah submit.'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
                   <AnimatePresence mode="wait">
                     {currentSection && (
                       <motion.div key={currentSection.id} initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 30 }} className="space-y-6">
@@ -542,15 +936,39 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
                               <Gift className="w-4 h-4 text-purple-600" />
                               <span className="text-purple-900 font-semibold">Kode Afiliasi (Opsional)</span>
                             </Label>
-                            <Input
-                              id="affiliate-code"
-                              type="text"
-                              placeholder="Masukkan kode afiliasi jika ada"
-                              value={affiliateCode}
-                              onChange={(e) => setAffiliateCode(e.target.value.toUpperCase())}
-                              className="bg-white border-purple-300 focus:border-purple-500 focus:ring-purple-500"
-                            />
-                            <p className="text-xs text-purple-700 mt-2">Dapatkan benefit tambahan dengan kode afiliasi</p>
+                            <div className="relative">
+                              <Input
+                                id="affiliate-code"
+                                type="text"
+                                placeholder="Masukkan kode afiliasi jika ada"
+                                value={affiliateCode}
+                                onChange={(e) => setAffiliateCode(e.target.value.toUpperCase())}
+                                className="bg-white border-purple-300 focus:border-purple-500 focus:ring-purple-500 pr-10"
+                              />
+                              {isVerifyingAffiliate && (
+                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-purple-600 border-t-transparent"></div>
+                                </div>
+                              )}
+                              {affiliateInfo && (
+                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                </div>
+                              )}
+                            </div>
+                            {affiliateInfo ? (
+                              <div className="bg-green-50 border border-green-200 rounded-lg p-2 mt-2">
+                                <p className="text-xs text-green-700">
+                                  ✅ Kode valid! Referral dari <span className="font-medium">{affiliateInfo.affiliate_name}</span>
+                                  {affiliateInfo.commission_type === 'percentage' 
+                                    ? ` (${affiliateInfo.commission_value}% komisi)`
+                                    : ` (Rp ${new Intl.NumberFormat('id-ID').format(affiliateInfo.commission_value)} komisi)`
+                                  }
+                                </p>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-purple-700 mt-2">Dapatkan benefit tambahan dengan kode afiliasi</p>
+                            )}
                           </div>
                         )}
                         {isLastSection && formData.hasPayment && (
@@ -573,19 +991,27 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
                     )}
                   </AnimatePresence>
                   <div className="flex gap-4">
-                    {currentIndex > 0 && <Button type="button" variant="outline" onClick={() => handleSectionChange(-1)} className="w-full" disabled={isSubmitting}>Kembali</Button>}
-                    <Button type="submit" disabled={isSubmitting || isLoading} className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-lg py-6">
-                      {isSubmitting ? (
-                        selectedTier?.price > 0 ? 'Memproses Pembayaran...' : 'Mengirim...'
-                      ) : (
-                        !isLastSection ? 'Lanjut' : (
-                          formData?.hasPayment ? (
-                            selectedTier?.price === 0 ? 'Daftar Gratis' : '💳 Bayar Sekarang'
-                          ) : 'Kirim Form'
-                        )
-                      )}
-                      <ArrowRight className="ml-2 w-5 h-5" />
-                    </Button>
+                    {currentIndex > 0 && <Button type="button" variant="outline" onClick={() => handleSectionChange(-1)} className="w-full" disabled={isSubmitting || hasSubmitted}>Kembali</Button>}
+                    
+                    {hasSubmitted && isAuthenticated() ? (
+                      <Button disabled className="w-full bg-gradient-to-r from-green-500 to-green-600 text-lg py-6 cursor-not-allowed opacity-75">
+                        <CheckCircle2 className="mr-2 w-5 h-5" />
+                        Sudah Terdaftar
+                      </Button>
+                    ) : (
+                      <Button type="submit" disabled={isSubmitting || isLoading} className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-lg py-6">
+                        {isSubmitting ? (
+                          selectedTier?.price > 0 ? 'Memproses Pembayaran...' : 'Mengirim...'
+                        ) : (
+                          !isLastSection ? 'Lanjut' : (
+                            formData?.hasPayment ? (
+                              selectedTier?.price === 0 ? 'Daftar Gratis' : '💳 Bayar Sekarang'
+                            ) : 'Kirim Form'
+                          )
+                        )}
+                        <ArrowRight className="ml-2 w-5 h-5" />
+                      </Button>
+                    )}
                   </div>
                 </form>
               </motion.div>

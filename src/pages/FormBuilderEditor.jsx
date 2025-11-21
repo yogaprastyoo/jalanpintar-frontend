@@ -88,6 +88,7 @@ const FieldItem = ({ field, onUpdate, onDelete }) => {
               <SelectItem value="textarea">Textarea</SelectItem>
               <SelectItem value="number">Number</SelectItem>
               <SelectItem value="select">Select</SelectItem>
+              <SelectItem value="checkbox">Checkbox</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -108,6 +109,18 @@ const FieldItem = ({ field, onUpdate, onDelete }) => {
             onChange={(e) => onUpdate(field.id, { options: e.target.value })}
             className="mt-1 h-8" 
           />
+        </div>
+      )}
+      {field.type === 'checkbox' && (
+        <div>
+          <Label className="text-xs">Checkbox Items (comma-separated)</Label>
+          <Input 
+            value={field.options || ''} 
+            onChange={(e) => onUpdate(field.id, { options: e.target.value })}
+            className="mt-1 h-8" 
+            placeholder="Option 1, Option 2, Option 3"
+          />
+          <p className="text-xs text-gray-500 mt-1">Masukkan pilihan checkbox, pisahkan dengan koma</p>
         </div>
       )}
       <div className="flex items-center justify-between mt-3">
@@ -296,7 +309,7 @@ const FormBuilderEditor = () => {
     const loadData = async () => {
       // Load categories/folders from API
       try {
-        const response = await api.get('/api/categories');
+        const response = await api.get('/categories');
         // Store full category objects
         setCategories(response.data);
         // Extract category names for folder select
@@ -326,7 +339,7 @@ const FormBuilderEditor = () => {
         setIsLoading(true);
         try {
           // Try to load from API first
-          const response = await api.get(`/api/forms/${formId}`);
+          const response = await api.get(`forms/${formId}`);
           const backendData = response.data;
           
           // Transform backend data to frontend structure
@@ -518,6 +531,7 @@ const FormBuilderEditor = () => {
         'textarea': 'textarea',
         'number': 'number',
         'select': 'select',
+        'checkbox': 'checkbox',
         'date': 'date',
         'time': 'time',
         'file': 'file'
@@ -542,6 +556,12 @@ const FormBuilderEditor = () => {
           is_required: field.required || false,
           order: fieldIndex + 1,
           ...(field.type === 'select' && field.options ? {
+            options: field.options.split(',').map((opt, idx) => ({
+              value: opt.trim().toLowerCase().replace(/\s+/g, '_'),
+              label: opt.trim()
+            }))
+          } : {}),
+          ...(field.type === 'checkbox' && field.options ? {
             options: field.options.split(',').map((opt, idx) => ({
               value: opt.trim().toLowerCase().replace(/\s+/g, '_'),
               label: opt.trim()
@@ -621,7 +641,7 @@ const FormBuilderEditor = () => {
       
       if (isNewForm) {
         // Create new form via API
-        const response = await api.post('/api/forms', backendPayload);
+        const response = await api.post('forms', backendPayload);
         savedForm = response.data;
         
         console.log('✅ Form created:', savedForm);
@@ -632,7 +652,7 @@ const FormBuilderEditor = () => {
         });
       } else {
         // Update existing form via API
-        const response = await api.put(`/api/forms/${formId}`, backendPayload);
+        const response = await api.put(`forms/${formId}`, backendPayload);
         savedForm = response.data;
         
         console.log('✅ Form updated:', savedForm);

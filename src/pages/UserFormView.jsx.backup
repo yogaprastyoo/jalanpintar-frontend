@@ -109,7 +109,7 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
         setIsLoading(true);
         try {
           // Try to load from API first (public endpoint using slug, without /view)
-          const response = await api.publicGet(`/api/public/forms/${formSlug}`);
+          const response = await api.publicGet(`public/forms/${formSlug}`);
           
           // Transform backend data to match frontend structure
           const backendData = response.data;
@@ -281,7 +281,7 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
         console.log('�📤 Sending payload:', payload);
         
         // Submit to API only for real forms (using slug)
-        const response = await api.publicPost(`/api/public/submissions`, payload);
+        const response = await api.publicPost(`public/submissions`, payload);
         console.log('✅ Response submitted to API via slug:', response);
       } else {
         console.log('📋 Preview mode - skipping API submission');

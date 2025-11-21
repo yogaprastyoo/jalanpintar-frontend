@@ -28,7 +28,7 @@ const FormResponses = () => {
     setIsLoading(true);
     try {
       // Load form data from API
-      const formResponse = await api.get(`/api/forms/${formId}`);
+      const formResponse = await api.get(`forms/${formId}`);
       const backendFormData = formResponse.data;
       
       // Transform form data
@@ -51,7 +51,7 @@ const FormResponses = () => {
       // Try to load submissions from API
       // Backend mungkin belum punya route ini, jadi wrap dalam try-catch
       try {
-        const responsesData = await api.get(`/api/forms/${formId}/submissions`);
+        const responsesData = await api.get(`forms/${formId}/submissions`);
         const transformedResponses = responsesData.data.map(submission => ({
           id: submission.id,
           submittedAt: submission.created_at,
