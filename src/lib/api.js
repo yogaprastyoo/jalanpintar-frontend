@@ -47,21 +47,28 @@ export const getAccessToken = () => {
 };
 
 /**
- * Get stored refresh token (from cookies for security)
+ * Get stored refresh token (from cookies - set by backend as HTTP-only)
+ * Note: If backend uses HTTP-only cookies, JavaScript cannot read it directly.
+ * The cookie will be automatically sent with requests to the backend.
  */
 export const getRefreshToken = () => {
-  // Try cookies first (more secure)
+  // Try to read from cookie (works only if NOT HTTP-only)
   const cookieToken = getCookie(REFRESH_TOKEN_KEY);
   if (cookieToken) return cookieToken;
   
-  // Fallback to localStorage for backward compatibility
-  return localStorage.getItem(REFRESH_TOKEN_KEY);
+  // Fallback: Check localStorage (only if we manually stored it)
+  const localToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+  if (localToken && localToken !== 'temp_missing') return localToken;
+  
+  // If backend uses HTTP-only cookie, return indicator
+  // The actual token will be sent automatically by browser in cookie header
+  return 'http_only_cookie';
 };
 
 /**
  * Store tokens
  * - Access token in localStorage (short-lived, needs JS access)
- * - Refresh token in httpOnly-style cookie (long-lived, more secure)
+ * - Refresh token: Backend sends via HTTP-only cookie (most secure)
  * - User data in localStorage (for role checking)
  */
 export const setTokens = (accessToken, refreshToken, userData = null) => {
@@ -69,11 +76,10 @@ export const setTokens = (accessToken, refreshToken, userData = null) => {
     localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
   }
   
-  if (refreshToken) {
-    // Store in cookie (7 days expiry)
-    setCookie(REFRESH_TOKEN_KEY, refreshToken, 7);
-    
-    // Also store in localStorage as fallback
+  // Note: Backend sends refresh_token via HTTP-only cookie
+  // We don't need to manually set it here - browser handles it automatically
+  // Only store in localStorage if explicitly provided (for non HTTP-only scenarios)
+  if (refreshToken && refreshToken !== 'temp_missing') {
     localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   }
   
@@ -139,23 +145,25 @@ export const isAuthenticated = () => {
 const refreshAccessToken = async () => {
   const refreshToken = getRefreshToken();
   
-  // TEMPORARY: If backend didn't provide refresh_token, redirect to login
+  // If backend uses HTTP-only cookie for refresh_token, we don't need to send it manually
+  // The browser will automatically include it in the request
   if (!refreshToken || refreshToken === 'temp_missing') {
-    console.warn('⚠️ Cannot refresh token - backend did not provide refresh_token');
-    console.warn('🔄 Access token expired - redirecting to login...');
-    clearTokens();
-    window.location.href = '/login';
-    throw new Error('No refresh token available');
+    console.warn('⚠️ No refresh token in localStorage - may be in HTTP-only cookie');
+    console.log('🔄 Attempting token refresh with cookie-based refresh_token...');
   }
 
   try {
     const response = await fetch(`${API_BASE}${REFRESH_ENDPOINT}`, {
       method: 'POST',
+      credentials: 'include', // CRITICAL: Send HTTP-only cookie with refresh_token
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      // Only send refresh_token in body if it's NOT in HTTP-only cookie
+      body: (refreshToken && refreshToken !== 'temp_missing' && refreshToken !== 'http_only_cookie') 
+        ? JSON.stringify({ refresh_token: refreshToken })
+        : JSON.stringify({}),
     });
 
     if (!response.ok) {
@@ -164,15 +172,16 @@ const refreshAccessToken = async () => {
 
     const data = await response.json();
     
-    // Laravel Sanctum typically returns: { access_token, refresh_token }
+    // Backend returns new access_token, refresh_token stays in HTTP-only cookie
     const newAccessToken = data.access_token || data.token;
-    const newRefreshToken = data.refresh_token;
+    const newRefreshToken = data.refresh_token; // May be undefined if in HTTP-only cookie
 
     if (!newAccessToken) {
       throw new Error('No access token in refresh response');
     }
 
-    setTokens(newAccessToken, newRefreshToken || refreshToken);
+    setTokens(newAccessToken, newRefreshToken);
+    console.log('✅ Token refreshed successfully');
     return newAccessToken;
   } catch (error) {
     clearTokens();
@@ -193,6 +202,7 @@ export const login = async (email, password) => {
   const response = await fetch(`${API_BASE}${LOGIN_ENDPOINT}`, {
     method: 'POST',
     mode: 'cors',
+    credentials: 'include', // Important: Include cookies for HTTP-only refresh_token
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -220,25 +230,20 @@ export const login = async (email, password) => {
   
   // Store tokens with security best practices:
   // - Access token in localStorage (short-lived, needs JS access for API calls)
-  // - Refresh token in cookie (long-lived, more secure from XSS)
+  // - Refresh token sent by backend via HTTP-only cookie (automatic, most secure)
   const accessToken = data.access_token || data.token;
-  const refreshToken = data.refresh_token;
+  const refreshToken = data.refresh_token; // May be undefined if sent via HTTP-only cookie
   
   console.log('🔑 Access token:', accessToken ? 'Present' : 'Missing');
-  console.log('🔄 Refresh token:', refreshToken ? 'Present' : 'Missing');
+  console.log('🔄 Refresh token in JSON:', refreshToken ? 'Present' : 'Not in body (sent via HTTP-only cookie)');
   
-  // TEMPORARY WORKAROUND: Save access_token even without refresh_token
-  // Backend needs to return refresh_token for proper token rotation
+  // Save access_token and user data
+  // Note: refresh_token is automatically saved by browser if backend sends via Set-Cookie header
   if (accessToken) {
-    setTokens(accessToken, refreshToken || 'temp_missing', data.user);
-    if (!refreshToken) {
-      console.warn('⚠️ Backend is not returning refresh_token - using temporary workaround');
-      console.warn('⚠️ Token refresh will redirect to login when access_token expires');
-    } else {
-      console.log('💾 Access token saved to localStorage');
-      console.log('🍪 Refresh token saved to cookie');
-      console.log('👤 User data saved:', data.user?.email, 'Role:', data.user?.role);
-    }
+    setTokens(accessToken, refreshToken, data.user);
+    console.log('💾 Access token saved to localStorage');
+    console.log('🍪 Refresh token handled by browser (HTTP-only cookie from backend)');
+    console.log('👤 User data saved:', data.user?.email, 'Role:', data.user?.role);
   } else {
     console.error('❌ No access_token in response!');
     console.warn('Response structure:', Object.keys(data));
@@ -255,6 +260,7 @@ export const login = async (email, password) => {
 export const register = async (userData) => {
   const response = await fetch(`${API_BASE}${REGISTER_ENDPOINT}`, {
     method: 'POST',
+    credentials: 'include', // Important: Include cookies for HTTP-only refresh_token
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -271,16 +277,14 @@ export const register = async (userData) => {
   
   // Store tokens (same as login - you get tokens immediately)
   const accessToken = data.access_token || data.token;
-  const refreshToken = data.refresh_token;
+  const refreshToken = data.refresh_token; // May be undefined if sent via HTTP-only cookie
   
-  // TEMPORARY WORKAROUND: Same as login
+  // Save tokens and user data
+  // Note: Backend sends refresh_token via HTTP-only cookie (browser handles automatically)
   if (accessToken) {
-    setTokens(accessToken, refreshToken || 'temp_missing', data.user);
-    if (!refreshToken) {
-      console.warn('⚠️ Backend is not returning refresh_token on registration');
-    } else {
-      console.log('👤 New user registered:', data.user?.email, 'Role:', data.user?.role);
-    }
+    setTokens(accessToken, refreshToken, data.user);
+    console.log('👤 New user registered:', data.user?.email, 'Role:', data.user?.role);
+    console.log('🍪 Refresh token: Backend sends via HTTP-only cookie');
   }
 
   return data;
@@ -296,6 +300,7 @@ export const logout = async () => {
     try {
       await fetch(`${API_BASE}${LOGOUT_ENDPOINT}`, {
         method: 'POST',
+        credentials: 'include', // Important: Send cookies to clear refresh_token on backend
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Accept': 'application/json',
@@ -349,7 +354,11 @@ export const apiFetch = async (endpoint, options = {}, requireAuth = true) => {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    return fetch(url, { ...options, headers });
+    return fetch(url, { 
+      ...options, 
+      headers,
+      credentials: 'include' // CRITICAL: Always include cookies for refresh_token
+    });
   };
 
   let accessToken = getAccessToken();
