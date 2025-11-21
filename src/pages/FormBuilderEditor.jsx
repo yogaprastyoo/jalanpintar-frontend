@@ -641,7 +641,7 @@ const FormBuilderEditor = () => {
       
       if (isNewForm) {
         // Create new form via API
-        const response = await api.post('forms', backendPayload);
+        const response = await api.post('/forms', backendPayload);
         savedForm = response.data;
         
         console.log('✅ Form created:', savedForm);

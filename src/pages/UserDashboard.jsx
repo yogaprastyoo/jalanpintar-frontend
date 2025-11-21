@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { logout, getUserData } from '@/lib/api';
 import UserAffiliateStats from '../components/UserAffiliateStats';
-import UserAffiliateLeaderboard from '../components/UserAffiliateLeaderboard';
 import UserFormList from '../components/UserFormList';
 import AffiliateLinksManager from '../components/AffiliateLinksManager';
 
@@ -42,11 +41,18 @@ const UserDashboard = () => {
       action: () => document.getElementById('stats-section')?.scrollIntoView({ behavior: 'smooth' })
     },
     {
+      title: 'Link Afiliasi',
+      description: 'Kelola link afiliasi Anda',
+      icon: Share2,
+      color: 'from-purple-500 to-purple-600',
+      action: () => document.getElementById('links-section')?.scrollIntoView({ behavior: 'smooth' })
+    },
+    {
       title: 'Leaderboard',
-      description: 'Lihat peringkat afiliasi',
+      description: 'Lihat peringkat afiliasi terbaik',
       icon: Trophy,
       color: 'from-yellow-500 to-yellow-600',
-      action: () => document.getElementById('leaderboard-section')?.scrollIntoView({ behavior: 'smooth' })
+      action: () => navigate('/user/leaderboard')
     }
   ];
 
@@ -118,7 +124,7 @@ const UserDashboard = () => {
           </motion.div>
 
           {/* Quick Actions */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {quickActions.map((action, index) => (
               <motion.div
                 key={action.title}
@@ -145,19 +151,14 @@ const UserDashboard = () => {
           </div>
           
           <div className="space-y-8">
-            {/* Affiliate Statistics and Leaderboard */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2" id="stats-section">
-                <UserAffiliateStats onAffiliatesLoad={setUserAffiliates} />
-              </div>
-              <div id="leaderboard-section">
-                <UserAffiliateLeaderboard />
-              </div>
+            {/* Affiliate Statistics - Full Width */}
+            <div id="stats-section">
+              <UserAffiliateStats onAffiliatesLoad={setUserAffiliates} />
             </div>
 
             {/* Affiliate Links Manager */}
             {userAffiliates && userAffiliates.length > 0 && (
-              <div>
+              <div id="links-section">
                 <AffiliateLinksManager affiliates={userAffiliates} />
               </div>
             )}

@@ -277,6 +277,19 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
                     status: matchedForm.user_submission_status,
                     id: matchedForm.user_submission_id
                   });
+                  
+                  // Redirect to dashboard if already submitted
+                  console.log('⚠️ User already submitted this form, redirecting to dashboard...');
+                  toast({
+                    title: "Sudah Terdaftar! ✅",
+                    description: "Anda sudah mendaftar pada form ini sebelumnya. Redirecting...",
+                    variant: "default"
+                  });
+                  
+                  setTimeout(() => {
+                    navigate('/user/dashboard');
+                  }, 1500);
+                  return; // Stop further execution
                 }
               } else {
                 // Fallback to public endpoint if form not found in user forms
@@ -829,62 +842,6 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
                     <span className="bg-purple-200 text-purple-800 px-2 py-1 rounded text-xs font-mono">
                       {affiliateCode}
                     </span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Submission status notification */}
-          {hasSubmitted && isAuthenticated() && (
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-6"
-            >
-              <div className="bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-xl p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex-shrink-0">
-                    <CheckCircle2 className="w-6 h-6 text-green-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-green-800">Anda Sudah Terdaftar!</h3>
-                    <p className="text-green-700 text-sm">
-                      Anda telah mendaftar pada form ini sebelumnya.
-                      {submissionData?.submitted_at && (
-                        <span className="block text-green-600 text-xs mt-1">
-                          Tanggal daftar: {new Date(submissionData.submitted_at).toLocaleDateString('id-ID', {
-                            day: 'numeric',
-                            month: 'long', 
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </span>
-                      )}
-                      {submissionData?.affiliate_code && (
-                        <div className="flex items-center gap-2 mt-2 p-2 bg-white rounded-lg border border-green-200">
-                          <Gift className="w-4 h-4 text-purple-600" />
-                          <span className="text-sm font-medium text-purple-800">
-                            Kode Affiliate: {submissionData.affiliate_code}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              navigator.clipboard.writeText(submissionData.affiliate_code);
-                              toast({
-                                title: "Kode Disalin!",
-                                description: "Kode affiliate telah disalin ke clipboard.",
-                              });
-                            }}
-                            className="h-6 px-2 text-xs"
-                          >
-                            Copy
-                          </Button>
-                        </div>
-                      )}
-                    </p>
                   </div>
                 </div>
               </div>

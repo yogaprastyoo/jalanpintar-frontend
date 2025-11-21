@@ -92,10 +92,13 @@ export const getUserData = () => {
 
 /**
  * Get user role
+ * Default to 'user' if role is null/undefined (for newly registered users)
  */
 export const getUserRole = () => {
   const userData = getUserData();
-  return userData?.role || null;
+  // If role is null or undefined, default to 'user'
+  // Backend should set proper role, but this is a fallback
+  return userData?.role || 'user';
 };
 
 /**
@@ -119,10 +122,14 @@ export const clearTokens = () => {
 };
 
 /**
- * Check if user is authenticated (has tokens)
+ * Check if user is authenticated (has access token)
+ * Note: Only check access token, as backend may not return refresh token
  */
 export const isAuthenticated = () => {
-  return !!getAccessToken() && !!getRefreshToken();
+  const accessToken = getAccessToken();
+  const hasToken = !!accessToken && accessToken !== 'temp_missing';
+  console.log('🔐 isAuthenticated check:', hasToken, '| Token:', accessToken ? 'Present' : 'Missing');
+  return hasToken;
 };
 
 /**

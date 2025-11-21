@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { login, register, clearTokens } from '@/lib/api';
+import { login, register } from '@/lib/api';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -47,15 +47,20 @@ const LoginPage = () => {
         description: `Selamat datang, ${response.user?.name || 'User'}!`
       });
 
-      // Redirect based on role
-      if (response.user?.role === 'admin') {
-        navigate('/admin');
-      } else if (response.user?.role === 'user') {
-        navigate('/user/dashboard');
-      } else {
-        // Fallback for other roles or if role is not defined
-        navigate('/');
-      }
+      // Auto redirect ke dashboard berdasarkan role
+      setTimeout(() => {
+        if (response.user?.role === 'admin') {
+          console.log('🚀 Redirecting to admin dashboard');
+          navigate('/admin');
+        } else if (response.user?.role === 'user') {
+          console.log('🚀 Redirecting to user dashboard');
+          navigate('/user/dashboard');
+        } else {
+          // Default redirect ke root (akan auto-redirect berdasarkan role)
+          console.log('🚀 Redirecting to root');
+          navigate('/');
+        }
+      }, 500); // Small delay untuk memastikan toast terlihat
     } catch (error) {
       console.error('❌ Login error:', error);
       toast({
@@ -83,26 +88,42 @@ const LoginPage = () => {
     setIsLoading(true);
     
     try {
+      console.log('📝 Attempting registration with:', registerData.email);
       const response = await register(registerData);
+      
+      console.log('✅ Registration response:', response);
+      console.log('🔑 Access token:', localStorage.getItem('smartpath_access_token'));
+      console.log('👤 User data:', localStorage.getItem('smartpath_user_data'));
+      console.log('👤 User role:', response.user?.role || 'null (will default to user)');
+      
       toast({
         title: "Registrasi Berhasil! 🎉",
-        description: `Akun ${response.user?.name} berhasil dibuat dengan role ${response.user?.role}!`
+        description: `Selamat datang, ${response.user?.name || 'User'}!`
       });
       
-      // Redirect berdasarkan role
-      if (response.user?.role === 'admin') {
-        navigate('/admin');
-      } else if (response.user?.role === 'user') {
-        navigate('/user/dashboard');
-      } else {
-        // Fallback for other roles
-        toast({
-          title: "Info",
-          description: "Akun berhasil dibuat. Silakan login.",
-        });
-        clearTokens(); // Clear token untuk roles yang tidak dikenal
-      }
+      // Reset form
+      setRegisterData({
+        name: '',
+        email: '',
+        password: '',
+        password_confirmation: ''
+      });
+      
+      // Auto redirect ke dashboard berdasarkan role
+      // If role is null, getUserRole() will default to 'user'
+      setTimeout(() => {
+        const userRole = response.user?.role || 'user';
+        if (userRole === 'admin') {
+          console.log('🚀 Redirecting to admin dashboard');
+          navigate('/admin');
+        } else {
+          // Default to user dashboard (includes role='user' or role=null)
+          console.log('🚀 Redirecting to user dashboard');
+          navigate('/user/dashboard');
+        }
+      }, 500); // Small delay untuk memastikan toast terlihat
     } catch (error) {
+      console.error('❌ Registration error:', error);
       toast({
         title: "Registrasi Gagal! ❌",
         description: error.message || "Gagal membuat akun.",

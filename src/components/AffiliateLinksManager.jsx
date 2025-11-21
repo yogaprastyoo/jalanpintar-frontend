@@ -203,15 +203,6 @@ const AffiliateLinksManager = ({ affiliates }) => {
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div>
-                <p className="text-purple-600">Komisi</p>
-                <p className="font-semibold text-purple-900">
-                  {affiliate.commission_type === 'percentage' 
-                    ? `${affiliate.commission_value}%`
-                    : `Rp ${new Intl.NumberFormat('id-ID').format(affiliate.commission_value)}`
-                  }
-                </p>
-              </div>
-              <div>
                 <p className="text-purple-600">Total Earned</p>
                 <p className="font-semibold text-purple-900">
                   Rp {new Intl.NumberFormat('id-ID').format(affiliate.total_earned)}

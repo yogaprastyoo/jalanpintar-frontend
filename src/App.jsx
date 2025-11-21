@@ -15,6 +15,7 @@ import UserFormView from '@/pages/UserFormView';
 import UserAnnouncementCheck from '@/pages/UserAnnouncementCheck';
 import FormSuccess from '@/pages/FormSuccess';
 import UserDashboard from '@/pages/UserDashboard';
+import UserLeaderboard from '@/pages/UserLeaderboard';
 import FormRedirect from '@/pages/FormRedirect';
 
 // Component untuk redirect berdasarkan role
@@ -25,12 +26,16 @@ const RoleBasedRedirect = () => {
 
   const userRole = getUserRole();
   
+  console.log('🚦 RoleBasedRedirect - User role:', userRole);
+  
   if (userRole === 'admin') {
     return <Navigate to="/admin" replace />;
-  } else if (userRole === 'user') {
+  } else if (userRole === 'user' || !userRole) {
+    // Default to user dashboard if role is 'user' or null
     return <Navigate to="/user/dashboard" replace />;
   } else {
     // Fallback untuk role yang tidak dikenal
+    console.warn('⚠️ Unknown role:', userRole, '- redirecting to login');
     return <Navigate to="/login" replace />;
   }
 };
@@ -55,6 +60,7 @@ function App() {
           
           {/* Protected User Routes */}
           <Route path="/user/dashboard" element={<ProtectedRoute requiredRole="user"><UserDashboard /></ProtectedRoute>} />
+          <Route path="/user/leaderboard" element={<ProtectedRoute requiredRole="user"><UserLeaderboard /></ProtectedRoute>} />
 
           {/* Redirect route for affiliate links */}
           <Route path="/forms/:slug" element={<FormRedirect />} />
