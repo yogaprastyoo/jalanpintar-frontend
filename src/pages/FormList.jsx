@@ -341,10 +341,10 @@ const FormList = () => {
 
   const deleteForm = async (formId) => {
     try {
-      // Delete via API
-      await api.delete(`forms/${formId}`);
+      // Delete via API using ID
+      await api.delete(`/forms/${formId}`);
       
-      // Update local state
+      // Update local state - filter by ID
       const updatedForms = forms.filter(f => f.id !== formId);
       setForms(updatedForms);
       localStorage.setItem('smartpath_forms', JSON.stringify(updatedForms));
@@ -652,11 +652,11 @@ const FormList = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => navigate(`/admin/forms/edit/${form.id}`)}>
+                              <DropdownMenuItem onClick={() => navigate(`/admin/forms/edit/${form.slug}`)}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 <span>Edit Form</span>
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => navigate(`/admin/forms/responses/${form.id}`)}>
+                              <DropdownMenuItem onClick={() => navigate(`/admin/forms/responses/${form.slug}`)}>
                                 <MessageSquare className="mr-2 h-4 w-4" />
                                 <span>Lihat Respon</span>
                               </DropdownMenuItem>

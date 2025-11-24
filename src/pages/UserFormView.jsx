@@ -9,7 +9,7 @@ import {
   Mail, Phone, MapPin, CreditCard, FileText, Calendar, 
   Briefcase, Heart, Home, Settings, Star, ShoppingCart,
   // Import icons untuk upsell
-  Zap, TrendingUp, Award, CheckCircle2, Crown
+  Zap, TrendingUp, Award, CheckCircle2, Crown, AlertCircle, ArrowLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -265,31 +265,40 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
             try {
               // First try to get the form with submission status from user endpoint
               const userFormsResponse = await api.get(`/user/forms?search=${formSlug}`);
+              
+              console.log('📡 User forms response:', userFormsResponse);
+              console.log('🔍 Looking for form with slug:', formSlug);
+              console.log('📋 Forms received:', userFormsResponse.data.map(f => ({ slug: f.slug, submitted: f.user_has_submitted })));
+              
               const matchedForm = userFormsResponse.data.find(form => form.slug === formSlug);
               
               if (matchedForm) {
                 backendData = matchedForm;
+                
+                console.log('🔍 Form matched from user endpoint:', {
+                  slug: matchedForm.slug,
+                  user_has_submitted: matchedForm.user_has_submitted,
+                  user_submitted_at: matchedForm.user_submitted_at,
+                  user_submission_status: matchedForm.user_submission_status
+                });
+                
                 // Set submission status from user endpoint
-                setHasSubmitted(matchedForm.user_has_submitted || false);
-                if (matchedForm.user_has_submitted && matchedForm.user_submitted_at) {
-                  setSubmissionData({
+                const hasUserSubmitted = matchedForm.user_has_submitted || false;
+                setHasSubmitted(hasUserSubmitted);
+                
+                if (hasUserSubmitted && matchedForm.user_submitted_at) {
+                  const submissionInfo = {
                     submitted_at: matchedForm.user_submitted_at,
                     status: matchedForm.user_submission_status,
-                    id: matchedForm.user_submission_id
-                  });
+                    id: matchedForm.user_submission_id,
+                    affiliate_code: matchedForm.user_affiliate_code
+                  };
+                  setSubmissionData(submissionInfo);
                   
-                  // Redirect to dashboard if already submitted
-                  console.log('⚠️ User already submitted this form, redirecting to dashboard...');
-                  toast({
-                    title: "Sudah Terdaftar! ✅",
-                    description: "Anda sudah mendaftar pada form ini sebelumnya. Redirecting...",
-                    variant: "default"
-                  });
-                  
-                  setTimeout(() => {
-                    navigate('/user/dashboard');
-                  }, 1500);
-                  return; // Stop further execution
+                  console.log('✅ User already submitted this form - will show registration page');
+                  console.log('📋 Submission data:', submissionInfo);
+                } else {
+                  console.log('➡️ User has not submitted - will show form');
                 }
               } else {
                 // Fallback to public endpoint if form not found in user forms
@@ -763,6 +772,15 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
   // Get icon component untuk current section
   const SectionIcon = SECTION_ICONS[currentSection?.icon] || FileText;
 
+  // Debug: Log state before render
+  console.log('🎨 Render UserFormView:', {
+    hasSubmitted,
+    isAuthenticated: isAuthenticated(),
+    isPreview,
+    formSlug,
+    submissionData
+  });
+
   return (
     <>
       {!isPreview && (
@@ -774,6 +792,145 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
 
       <div className={isPreview ? "" : "min-h-screen bg-gradient-to-br from-blue-50 via-white to-yellow-50"}>
         <div className={isPreview ? "" : "container mx-auto px-4 py-8 max-w-4xl"}>
+          
+          {/* Already Registered Page */}
+          {(() => {
+            const shouldShowRegisteredPage = hasSubmitted && isAuthenticated() && !isPreview;
+            console.log('🔍 Should show registered page?', {
+              hasSubmitted,
+              isAuthenticated: isAuthenticated(),
+              isPreview,
+              result: shouldShowRegisteredPage
+            });
+            
+            if (shouldShowRegisteredPage) {
+              return (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="max-w-2xl mx-auto"
+            >
+              {/* Logo */}
+              <div className="text-center mb-8">
+                <img 
+                  src="https://horizons-cdn.hostinger.com/97945fa6-ac93-416e-87c3-f12e19c0f260/0bed04b4c783f6129ca30c54d33467ad.png" 
+                  alt="SmartPath Logo" 
+                  className="h-16 w-auto mx-auto mb-4" 
+                />
+              </div>
+
+              {/* Already Registered Card */}
+              <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-green-500 to-green-600 p-6 text-center">
+                  <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                    <CheckCircle2 className="w-12 h-12 text-green-600" />
+                  </div>
+                  <h1 className="text-3xl font-bold text-white mb-2">Anda Sudah Terdaftar!</h1>
+                  <p className="text-green-50">Form: {formData?.title}</p>
+                </div>
+
+                {/* Content */}
+                <div className="p-8">
+                  <div className="bg-green-50 border-2 border-green-200 rounded-xl p-6 mb-6">
+                    <h3 className="font-bold text-green-900 mb-4 text-lg">📋 Informasi Pendaftaran</h3>
+                    
+                    {submissionData?.submitted_at && (
+                      <div className="bg-white rounded-lg p-4 mb-3">
+                        <p className="text-sm text-gray-600 mb-1">📅 Tanggal Pendaftaran:</p>
+                        <p className="font-semibold text-gray-900">
+                          {new Date(submissionData.submitted_at).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                    )}
+
+                    {submissionData?.status && (
+                      <div className="bg-white rounded-lg p-4 mb-3">
+                        <p className="text-sm text-gray-600 mb-1">📊 Status:</p>
+                        <p className="font-semibold">
+                          {submissionData.status === 'approved' && (
+                            <span className="text-green-600">✅ Disetujui</span>
+                          )}
+                          {submissionData.status === 'pending' && (
+                            <span className="text-yellow-600">⏳ Menunggu Verifikasi</span>
+                          )}
+                          {submissionData.status === 'rejected' && (
+                            <span className="text-red-600">❌ Ditolak</span>
+                          )}
+                        </p>
+                      </div>
+                    )}
+
+                    {submissionData?.affiliate_code && (
+                      <div className="bg-gradient-to-r from-purple-50 to-purple-100 border-2 border-purple-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Gift className="w-5 h-5 text-purple-600" />
+                            <p className="text-sm font-medium text-purple-800">Kode Affiliate Anda:</p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              navigator.clipboard.writeText(submissionData.affiliate_code);
+                              toast({
+                                title: "Kode Disalin!",
+                                description: "Kode affiliate telah disalin ke clipboard.",
+                              });
+                            }}
+                            className="h-8 px-3 text-xs hover:bg-purple-200"
+                          >
+                            📋 Copy
+                          </Button>
+                        </div>
+                        <p className="font-mono font-bold text-purple-900 text-lg">
+                          {submissionData.affiliate_code}
+                        </p>
+                        <p className="text-xs text-purple-700 mt-2">
+                          Bagikan kode ini untuk mendapatkan komisi affiliate!
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0">
+                        <AlertCircle className="w-5 h-5 text-yellow-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-yellow-900 mb-1">Tidak Dapat Mendaftar Ulang</p>
+                        <p className="text-sm text-yellow-800">
+                          Anda sudah terdaftar pada form ini sebelumnya. Setiap user hanya dapat mendaftar satu kali.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={() => navigate('/user/dashboard')}
+                      className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md h-12 text-base"
+                    >
+                      <ArrowLeft className="w-5 h-5 mr-2" />
+                      Kembali ke Dashboard
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+              );
+            } else {
+              return (
+            <>
+          
           {/* Cover Image Banner with 4:1 Ratio */}
           {formData.coverImage && !isPreview && (
             <motion.div 
@@ -1151,6 +1308,10 @@ const UserFormView = ({ isPreview = false, previewData = null }) => {
               </motion.div>
             )}
           </AnimatePresence>
+          </>
+              );
+            }
+          })()}
         </div>
       </div>
     </>

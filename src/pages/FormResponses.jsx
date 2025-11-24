@@ -11,7 +11,7 @@ import api from '@/lib/api';
 
 const FormResponses = () => {
   const navigate = useNavigate();
-  const { formId } = useParams();
+  const { formSlug } = useParams();
   const { toast } = useToast();
   const [formData, setFormData] = useState(null);
   const [responses, setResponses] = useState([]);
@@ -22,13 +22,13 @@ const FormResponses = () => {
 
   useEffect(() => {
     loadFormAndResponses();
-  }, [formId]);
+  }, [formSlug]);
 
   const loadFormAndResponses = async () => {
     setIsLoading(true);
     try {
-      // Load form data from API
-      const formResponse = await api.get(`forms/${formId}`);
+      // Load form data from API using slug
+      const formResponse = await api.get(`/public/forms/${formSlug}`);
       const backendFormData = formResponse.data;
       
       // Transform form data
@@ -48,16 +48,16 @@ const FormResponses = () => {
       
       setFormData(transformedFormData);
       
-      // Try to load submissions from API
+      // Try to load submissions from API using form ID (not slug)
       // Backend mungkin belum punya route ini, jadi wrap dalam try-catch
       try {
-        const responsesData = await api.get(`forms/${formId}/submissions`);
+        const responsesData = await api.get(`/forms/${backendFormData.id}/submissions`);
         const transformedResponses = responsesData.data.map(submission => ({
           id: submission.id,
           submittedAt: submission.created_at,
           data: submission.data || {},
           tier: submission.pricing_tier?.name || 'Gratis',
-          amount: submission.pricing_tier?.price || 0,
+          amount: parseFloat(submission.pricing_tier?.price) || 0,
           paymentStatus: submission.payment_status || 'pending',
           paymentMethod: submission.payment_method || null,
           affiliateCode: submission.affiliate_code || null,
@@ -86,14 +86,14 @@ const FormResponses = () => {
   };
 
   const loadFormDataFromLocal = () => {
-    const savedFormData = localStorage.getItem(`smartpath_form_${formId}`);
+    const savedFormData = localStorage.getItem(`smartpath_form_${formSlug}`);
     if (savedFormData) {
       setFormData(JSON.parse(savedFormData));
     }
   };
 
   const loadResponsesFromLocal = () => {
-    const savedResponses = localStorage.getItem(`smartpath_responses_${formId}`);
+    const savedResponses = localStorage.getItem(`smartpath_responses_${formSlug}`);
     if (savedResponses) {
       setResponses(JSON.parse(savedResponses));
     }
@@ -134,7 +134,7 @@ const FormResponses = () => {
     pending: responses.filter(r => r.amount > 0 && r.paymentStatus === 'pending').length,
     totalRevenue: responses
       .filter(r => r.paymentStatus === 'paid')
-      .reduce((sum, r) => sum + (r.amount || 0), 0)
+      .reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0)
   };
 
   return (

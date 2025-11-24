@@ -274,9 +274,9 @@ const SectionItem = ({
 
 const FormBuilderEditor = () => {
   const navigate = useNavigate();
-  const { formId } = useParams();
+  const { formId } = useParams(); // Note: This is actually formSlug from route /admin/forms/edit/:formId
   const { toast } = useToast();
-  // Fix: formId bisa undefined (saat route /admin/forms/new) atau 'new'
+  // formId parameter actually contains the slug (not UUID) when editing
   const isNewForm = !formId || formId === 'new';
   const [folders, setFolders] = useState([]);
   const [categories, setCategories] = useState([]); // Store full category objects with icon & color
@@ -338,8 +338,8 @@ const FormBuilderEditor = () => {
       if (!isNewForm) {
         setIsLoading(true);
         try {
-          // Try to load from API first
-          const response = await api.get(`forms/${formId}`);
+          // Try to load from API first - using public endpoint with slug
+          const response = await api.get(`/public/forms/${formId}`);
           const backendData = response.data;
           
           // Transform backend data to frontend structure
@@ -652,7 +652,7 @@ const FormBuilderEditor = () => {
         });
       } else {
         // Update existing form via API
-        const response = await api.put(`forms/${formId}`, backendPayload);
+        const response = await api.put(`/forms/${formId}`, backendPayload);
         savedForm = response.data;
         
         console.log('✅ Form updated:', savedForm);

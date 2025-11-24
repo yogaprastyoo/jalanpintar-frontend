@@ -54,7 +54,7 @@ function App() {
           <Route path="/admin/forms" element={<ProtectedRoute requiredRole="admin"><FormList /></ProtectedRoute>} />
           <Route path="/admin/forms/new" element={<ProtectedRoute requiredRole="admin"><FormBuilderEditor /></ProtectedRoute>} />
           <Route path="/admin/forms/edit/:formId" element={<ProtectedRoute requiredRole="admin"><FormBuilderEditor /></ProtectedRoute>} />
-          <Route path="/admin/forms/responses/:formId" element={<ProtectedRoute requiredRole="admin"><FormResponses /></ProtectedRoute>} />
+          <Route path="/admin/forms/responses/:formSlug" element={<ProtectedRoute requiredRole="admin"><FormResponses /></ProtectedRoute>} />
           <Route path="/admin/announcements" element={<ProtectedRoute requiredRole="admin"><AnnouncementManager /></ProtectedRoute>} />
           <Route path="/admin/affiliates" element={<ProtectedRoute requiredRole="admin"><AffiliateManager /></ProtectedRoute>} />
           
