@@ -9,6 +9,7 @@ import { logout, getUserData } from '@/lib/api';
 import UserAffiliateStats from '../components/UserAffiliateStats';
 import UserFormList from '../components/UserFormList';
 import AffiliateLinksManager from '../components/AffiliateLinksManager';
+import { ROUTES } from '@/config/routes';
 
 const UserDashboard = () => {
   const navigate = useNavigate();
@@ -22,7 +23,7 @@ const UserDashboard = () => {
       title: "Logout Berhasil",
       description: "Anda telah keluar dari sistem."
     });
-    navigate('/login');
+    navigate(ROUTES.LOGIN.path);
   };
 
   const quickActions = [
@@ -52,7 +53,7 @@ const UserDashboard = () => {
       description: 'Lihat peringkat afiliasi terbaik',
       icon: Trophy,
       color: 'from-yellow-500 to-yellow-600',
-      action: () => navigate('/user/leaderboard')
+      action: () => navigate(ROUTES.USER_LEADERBOARD.path)
     }
   ];
 

@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import api from '@/lib/api';
+import { ROUTES } from '@/config/routes';
+import { FORM_ENDPOINTS } from '@/config/endpoints';
 
 const FormResponses = () => {
   const navigate = useNavigate();
@@ -28,7 +30,7 @@ const FormResponses = () => {
     setIsLoading(true);
     try {
       // Load form data from API using slug
-      const formResponse = await api.get(`/public/forms/${formSlug}`);
+      const formResponse = await api.get(FORM_ENDPOINTS.PUBLIC(formSlug));
       const backendFormData = formResponse.data;
       
       // Transform form data
@@ -51,7 +53,7 @@ const FormResponses = () => {
       // Try to load submissions from API using form ID (not slug)
       // Backend mungkin belum punya route ini, jadi wrap dalam try-catch
       try {
-        const responsesData = await api.get(`/forms/${backendFormData.id}/submissions`);
+        const responsesData = await api.get(FORM_ENDPOINTS.SUBMISSIONS(backendFormData.id));
         const transformedResponses = responsesData.data.map(submission => ({
           id: submission.id,
           submittedAt: submission.created_at,
@@ -153,7 +155,7 @@ const FormResponses = () => {
           >
             <Button
               variant="ghost"
-              onClick={() => navigate('/admin/forms')}
+              onClick={() => navigate(ROUTES.ADMIN_FORMS.path)}
               className="mb-4 gap-2"
             >
               <ArrowLeft className="w-4 h-4" />

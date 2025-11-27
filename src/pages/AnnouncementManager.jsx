@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
+import { ROUTES } from '@/config/routes';
 
 const AnnouncementManager = () => {
   const navigate = useNavigate();
@@ -121,7 +122,7 @@ const AnnouncementManager = () => {
           >
             <Button
               variant="ghost"
-              onClick={() => navigate('/admin')}
+              onClick={() => navigate(ROUTES.ADMIN_DASHBOARD.path)}
               className="mb-4 gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -130,7 +131,7 @@ const AnnouncementManager = () => {
             <div className="flex items-center justify-between">
               <h1 className="text-3xl font-bold text-gray-900">Kelola Pengumuman</h1>
               <Button
-                onClick={() => navigate('/user/announcements')}
+                onClick={() => navigate(ROUTES.USER_ANNOUNCEMENTS.path)}
                 variant="outline"
                 className="gap-2"
               >

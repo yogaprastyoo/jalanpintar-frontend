@@ -3,6 +3,8 @@
  * Run this in browser console if you need to reset: clearDummyData()
  */
 
+import logger from '../lib/logger';
+
 export const clearDummyData = () => {
   const keysToCheck = [
     'smartpath_forms',
@@ -17,7 +19,7 @@ export const clearDummyData = () => {
     if (localStorage.getItem(key)) {
       localStorage.removeItem(key);
       cleared++;
-      console.log(`✅ Cleared: ${key}`);
+      logger.info(`✅ Cleared: ${key}`);
     }
   });
 
@@ -26,21 +28,21 @@ export const clearDummyData = () => {
     if (key.startsWith('smartpath_form_temp_preview_')) {
       localStorage.removeItem(key);
       cleared++;
-      console.log(`✅ Cleared temp preview: ${key}`);
+      logger.info(`✅ Cleared temp preview: ${key}`);
     }
   });
 
   if (cleared > 0) {
-    console.log(`✨ Cleared ${cleared} localStorage items. Refresh the page to load fresh data from API.`);
+    logger.success(`Cleared ${cleared} localStorage items. Refresh the page to load fresh data from API.`);
     return true;
   } else {
-    console.log('ℹ️ No dummy data found in localStorage.');
+    logger.info('ℹ️ No dummy data found in localStorage.');
     return false;
   }
 };
 
-// Auto-expose to window for easy console access
-if (typeof window !== 'undefined') {
+// Only expose to window in development mode
+if (import.meta.env.DEV && typeof window !== 'undefined') {
   window.clearDummyData = clearDummyData;
 }
 

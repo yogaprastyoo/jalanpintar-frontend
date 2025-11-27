@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { login, register } from '@/lib/api';
+import logger from '@/lib/logger';
+import { ROUTES } from '@/config/routes';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -34,13 +36,10 @@ const LoginPage = () => {
     setIsLoading(true);
     
     try {
-      console.log('🔐 Attempting login with:', loginData.email);
+      logger.info('Attempting login...');
       const response = await login(loginData.email, loginData.password);
       
-      console.log('✅ Login response:', response);
-      console.log('🔑 Access token:', localStorage.getItem('smartpath_access_token'));
-      console.log('🔄 Refresh token:', localStorage.getItem('smartpath_refresh_token'));
-      console.log('👤 User role:', response.user?.role);
+      logger.success('Login successful');
       
       toast({
         title: "Login Berhasil! 🎉",
@@ -50,19 +49,19 @@ const LoginPage = () => {
       // Auto redirect ke dashboard berdasarkan role
       setTimeout(() => {
         if (response.user?.role === 'admin') {
-          console.log('🚀 Redirecting to admin dashboard');
-          navigate('/admin');
+          logger.debug('Redirect', 'Admin dashboard');
+          navigate(ROUTES.ADMIN_DASHBOARD.path);
         } else if (response.user?.role === 'user') {
-          console.log('🚀 Redirecting to user dashboard');
-          navigate('/user/dashboard');
+          logger.debug('Redirect', 'User dashboard');
+          navigate(ROUTES.USER_DASHBOARD.path);
         } else {
           // Default redirect ke root (akan auto-redirect berdasarkan role)
-          console.log('🚀 Redirecting to root');
-          navigate('/');
+          logger.debug('Redirect', 'Root (auto-redirect)');
+          navigate(ROUTES.HOME.path);
         }
       }, 500); // Small delay untuk memastikan toast terlihat
     } catch (error) {
-      console.error('❌ Login error:', error);
+      logger.error('Login error:', error.message);
       toast({
         title: "Login Gagal! ❌",
         description: error.message || "Email atau password salah.",
@@ -88,13 +87,10 @@ const LoginPage = () => {
     setIsLoading(true);
     
     try {
-      console.log('📝 Attempting registration with:', registerData.email);
+      logger.info('Attempting registration...');
       const response = await register(registerData);
       
-      console.log('✅ Registration response:', response);
-      console.log('🔑 Access token:', localStorage.getItem('smartpath_access_token'));
-      console.log('👤 User data:', localStorage.getItem('smartpath_user_data'));
-      console.log('👤 User role:', response.user?.role || 'null (will default to user)');
+      logger.success('Registration successful');
       
       toast({
         title: "Registrasi Berhasil! 🎉",
@@ -114,16 +110,16 @@ const LoginPage = () => {
       setTimeout(() => {
         const userRole = response.user?.role || 'user';
         if (userRole === 'admin') {
-          console.log('🚀 Redirecting to admin dashboard');
-          navigate('/admin');
+          logger.debug('Redirect', 'Admin dashboard');
+          navigate(ROUTES.ADMIN_DASHBOARD.path);
         } else {
           // Default to user dashboard (includes role='user' or role=null)
-          console.log('🚀 Redirecting to user dashboard');
-          navigate('/user/dashboard');
+          logger.debug('Redirect', 'User dashboard');
+          navigate(ROUTES.USER_DASHBOARD.path);
         }
       }, 500); // Small delay untuk memastikan toast terlihat
     } catch (error) {
-      console.error('❌ Registration error:', error);
+      logger.error('Registration error:', error.message);
       toast({
         title: "Registrasi Gagal! ❌",
         description: error.message || "Gagal membuat akun.",

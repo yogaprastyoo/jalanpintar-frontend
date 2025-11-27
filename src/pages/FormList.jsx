@@ -4,7 +4,7 @@ import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
-  ArrowLeft, Plus, Folder, Eye, MessageSquare, FileSpreadsheet, MoreVertical, Edit, Trash2, FolderPlus,
+  ArrowLeft, Plus, Folder, MessageSquare, FileSpreadsheet, MoreVertical, Edit, Trash2, FolderPlus,
   // Import icons untuk kategori
   User, Mail, Phone, MapPin, CreditCard, FileText, Calendar, 
   Briefcase, GraduationCap, Heart, Home, Settings, Star, ShoppingCart
@@ -17,6 +17,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import api, { isAuthenticated } from '@/lib/api';
+import { ROUTES, buildRoute } from '@/config/routes';
+import { FORM_ENDPOINTS, CATEGORY_ENDPOINTS } from '@/config/endpoints';
 
 // Icon mapping untuk kategori
 const CATEGORY_ICONS = {
@@ -112,7 +114,7 @@ const FormList = () => {
   const loadForms = async () => {
     setIsLoading(true);
     try {
-      const response = await api.get('/forms');
+      const response = await api.get(FORM_ENDPOINTS.LIST);
       console.log('📋 Forms from API:', response.data);
       
       // Map API response to match current structure
@@ -146,7 +148,7 @@ const FormList = () => {
 
   const loadFolders = async () => {
     try {
-      const response = await api.get('/categories');
+      const response = await api.get(CATEGORY_ENDPOINTS.LIST);
       console.log('📂 Categories loaded from API:', response.data);
       
       // Log each category's icon and color
@@ -217,7 +219,7 @@ const FormList = () => {
       console.log('📤 Creating category with payload:', payload);
       
       // Create via API with Laravel structure
-      const response = await api.post('/categories', payload);
+      const response = await api.post(CATEGORY_ENDPOINTS.CREATE, payload);
       
       console.log('✅ Category created:', response.data);
       console.log('📝 Icon saved:', response.data.icon);
@@ -272,7 +274,7 @@ const FormList = () => {
       console.log('📤 Updating category with payload:', payload);
       
       // Update via API
-      const response = await api.put(`/categories/${editingFolder.id}`, payload);
+      const response = await api.put(CATEGORY_ENDPOINTS.UPDATE(editingFolder.id), payload);
       
       console.log('✅ Category updated:', response.data);
       console.log('📝 Icon updated:', response.data.icon);
@@ -317,7 +319,7 @@ const FormList = () => {
     
     try {
       // Delete via API
-      await api.delete(`/categories/${categoryId}`);
+      await api.delete(CATEGORY_ENDPOINTS.DELETE(categoryId));
       
       console.log('✅ Category deleted');
       
@@ -342,7 +344,7 @@ const FormList = () => {
   const deleteForm = async (formId) => {
     try {
       // Delete via API using ID
-      await api.delete(`/forms/${formId}`);
+      await api.delete(FORM_ENDPOINTS.DELETE(formId));
       
       // Update local state - filter by ID
       const updatedForms = forms.filter(f => f.id !== formId);
@@ -384,7 +386,7 @@ const FormList = () => {
           >
             <Button
               variant="ghost"
-              onClick={() => navigate('/admin')}
+              onClick={() => navigate(ROUTES.ADMIN_DASHBOARD.path)}
               className="mb-4 gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -499,7 +501,7 @@ const FormList = () => {
                   </DialogContent>
                 </Dialog>
                 <Button
-                  onClick={() => navigate('/admin/forms/new')}
+                  onClick={() => navigate(ROUTES.ADMIN_FORMS_NEW.path)}
                   className="gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
                 >
                   <Plus className="w-4 h-4" />
@@ -636,15 +638,46 @@ const FormList = () => {
                         animate={{ opacity: 1, scale: 1 }}
                         className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
                       >
-                        <div>
-                          <p className="font-semibold text-gray-800">{form.title}</p>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <p className="font-semibold text-gray-800">{form.title}</p>
+                            {/* Status Badge */}
+                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              form.is_active !== false 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {form.is_active == true ? 'Aktif' : 'Tidak Aktif'}
+                            </span>
+                          </div>
                           <p className="text-sm text-blue-600 font-medium">{form.submissions?.toLocaleString('id-ID') || 0} Pendaftar</p>
                         </div>
+                        
+                        {/* Action Buttons */}
                         <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => navigate(`/user/form/${form.slug || form.id}`)}>
-                            <Eye className="w-4 h-4 mr-2" />
-                            Preview
+                          {/* Lihat Respons - Direct Link */}
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => navigate(buildRoute('ADMIN_FORMS_RESPONSES', form.slug))}
+                            className="gap-2"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                            Lihat Respons
                           </Button>
+                          
+                          {/* Edit Form */}
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => navigate(buildRoute('ADMIN_FORMS_EDIT', form.slug))}
+                            className="gap-2"
+                          >
+                            <Edit className="w-4 h-4" />
+                            Edit Form
+                          </Button>
+                          
+                          {/* Dropdown Menu - Only Export & Delete */}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon">
@@ -652,14 +685,6 @@ const FormList = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => navigate(`/admin/forms/edit/${form.slug}`)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                <span>Edit Form</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => navigate(`/admin/forms/responses/${form.slug}`)}>
-                                <MessageSquare className="mr-2 h-4 w-4" />
-                                <span>Lihat Respon</span>
-                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => toast({ title: '🚧 Fitur ekspor akan segera hadir!' })}>
                                 <FileSpreadsheet className="mr-2 h-4 w-4" />
                                 <span>Ekspor ke Spreadsheet</span>

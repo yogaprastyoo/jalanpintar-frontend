@@ -5,13 +5,14 @@ import { useNavigate } from 'react-router-dom';
 import { ShieldAlert, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { clearTokens } from '@/lib/api';
+import { ROUTES } from '@/config/routes';
 
 const UnauthorizedPage = () => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
     clearTokens();
-    navigate('/login');
+    navigate(ROUTES.LOGIN.path);
   };
 
   return (
@@ -49,7 +50,7 @@ const UnauthorizedPage = () => {
               </Button>
               
               <Button
-                onClick={() => navigate('/')}
+                onClick={() => navigate(ROUTES.HOME.path)}
                 variant="outline"
                 className="w-full"
               >

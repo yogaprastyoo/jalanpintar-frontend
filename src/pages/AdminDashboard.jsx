@@ -6,6 +6,7 @@ import { FileText, Megaphone, Users, Eye, Share2, LogOut, User } from 'lucide-re
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { logout, isAuthenticated, getUserData } from '@/lib/api';
+import { ROUTES, buildRoute } from '@/config/routes';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ const AdminDashboard = () => {
       title: "Logout Berhasil",
       description: "Anda telah keluar dari sistem."
     });
-    navigate('/login');
+    navigate(ROUTES.LOGIN.path);
   };
 
   const cards = [
@@ -27,23 +28,23 @@ const AdminDashboard = () => {
       description: 'Buat form custom dengan payment gateway Xendit',
       icon: FileText,
       color: 'from-blue-500 to-blue-600',
-      action: () => navigate('/admin/forms'),
-      userView: () => navigate('/user/form/demo')
+      action: () => navigate(ROUTES.ADMIN_FORMS.path),
+      userView: () => navigate(buildRoute('USER_FORM_VIEW', 'demo'))
     },
     {
       title: 'Pengumuman',
       description: 'Kelola pengumuman magang, beasiswa, dan lainnya',
       icon: Megaphone,
       color: 'from-yellow-500 to-yellow-600',
-      action: () => navigate('/admin/announcements'),
-      userView: () => navigate('/user/announcements')
+      action: () => navigate(ROUTES.ADMIN_ANNOUNCEMENTS.path),
+      userView: () => navigate(ROUTES.USER_ANNOUNCEMENTS.path)
     },
     {
       title: 'Program Afiliasi',
       description: 'Kelola afiliasi, komisi, dan penarikan dana',
       icon: Share2,
       color: 'from-green-500 to-green-600',
-      action: () => navigate('/admin/affiliates'),
+      action: () => navigate(ROUTES.ADMIN_AFFILIATES.path),
       userView: null
     }
   ];

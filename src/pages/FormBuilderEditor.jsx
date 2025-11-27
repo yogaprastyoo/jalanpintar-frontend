@@ -24,6 +24,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import UserFormView from '@/pages/UserFormView';
 import api, { isAuthenticated } from '@/lib/api';
+import { ROUTES } from '@/config/routes';
+import { FORM_ENDPOINTS, CATEGORY_ENDPOINTS } from '@/config/endpoints';
 
 // Icon mapping untuk section
 const SECTION_ICONS = {
@@ -309,7 +311,7 @@ const FormBuilderEditor = () => {
     const loadData = async () => {
       // Load categories/folders from API
       try {
-        const response = await api.get('/categories');
+        const response = await api.get(CATEGORY_ENDPOINTS.LIST);
         // Store full category objects
         setCategories(response.data);
         // Extract category names for folder select
@@ -327,7 +329,7 @@ const FormBuilderEditor = () => {
             description: "Silakan login kembali.",
             variant: "destructive"
           });
-          navigate('/login');
+          navigate(ROUTES.LOGIN.path);
           return;
         }
         setFolders([]);
@@ -339,12 +341,13 @@ const FormBuilderEditor = () => {
         setIsLoading(true);
         try {
           // Try to load from API first - using public endpoint with slug
-          const response = await api.get(`/public/forms/${formId}`);
+          const response = await api.get(FORM_ENDPOINTS.PUBLIC(formId));
           const backendData = response.data;
           
           // Transform backend data to frontend structure
           const transformedData = {
-            id: backendData.id,
+            id: backendData.id, // Store actual UUID from backend
+            slug: backendData.slug, // Store slug separately
             title: backendData.title,
             description: backendData.description || '',
             coverImage: backendData.cover_image || '',
@@ -418,7 +421,7 @@ const FormBuilderEditor = () => {
               description: "Form tidak ditemukan.", 
               variant: "destructive" 
             });
-            navigate('/admin/forms');
+            navigate(ROUTES.ADMIN_FORMS.path);
           }
         } finally {
           setIsLoading(false);
@@ -641,7 +644,7 @@ const FormBuilderEditor = () => {
       
       if (isNewForm) {
         // Create new form via API
-        const response = await api.post('/forms', backendPayload);
+        const response = await api.post(FORM_ENDPOINTS.CREATE, backendPayload);
         savedForm = response.data;
         
         console.log('✅ Form created:', savedForm);
@@ -652,10 +655,16 @@ const FormBuilderEditor = () => {
         });
       } else {
         // Update existing form via API
-        const response = await api.put(`/forms/${formId}`, backendPayload);
+        // Use actual form ID (UUID), not the slug from URL params
+        const actualFormId = formData.id;
+        if (!actualFormId) {
+          throw new Error('Form ID not found. Cannot update form.');
+        }
+        const response = await api.put(FORM_ENDPOINTS.UPDATE(actualFormId), backendPayload);
         savedForm = response.data;
         
         console.log('✅ Form updated:', savedForm);
+        console.log('🆔 Used form ID:', actualFormId, '(not slug:', formId, ')');
         
         toast({ 
           title: "Form berhasil diupdate! ✅", 
@@ -684,7 +693,7 @@ const FormBuilderEditor = () => {
       }
       localStorage.setItem('smartpath_forms', JSON.stringify(savedForms));
       
-      navigate('/admin/forms');
+      navigate(ROUTES.ADMIN_FORMS.path);
     } catch (error) {
       console.error('❌ Save form error:', error);
       console.error('Error details:', error.response?.data || error.message);
@@ -758,7 +767,7 @@ const FormBuilderEditor = () => {
           <div className="container mx-auto px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <Button variant="ghost" onClick={() => navigate('/admin/forms')} className="gap-2">
+                <Button variant="ghost" onClick={() => navigate(ROUTES.ADMIN_FORMS.path)} className="gap-2">
                   <ArrowLeft className="w-4 h-4" />
                   Kembali
                 </Button>

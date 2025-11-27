@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { api } from '@/lib/api';
+import { ROUTES } from '@/config/routes';
 
 const AffiliateManager = () => {
   const navigate = useNavigate();
@@ -365,7 +366,7 @@ const AffiliateManager = () => {
           >
             <Button
               variant="ghost"
-              onClick={() => navigate('/admin')}
+              onClick={() => navigate(ROUTES.ADMIN_DASHBOARD.path)}
               className="mb-4 gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
